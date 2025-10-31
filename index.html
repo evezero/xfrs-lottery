@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幸福闽分抽奖工具1.6d(业务版)</title>
+    <style>
+        @property --spotlight-size {
+            syntax: '<length>';
+            initial-value: 150px;
+            inherits: false;
+            }
+        :root {
+            --gold-color: #ffd700; --theme-red: #c03b2b; --dark-bg: #1a1a1a;
+            --light-bg: #f5f5ff; --dark-text: #333;
+        }
+        body { margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: var(--dark-bg); background-image: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%); color: white; }
+        #app-container { display: flex; flex-direction: column; height: 100vh; }
+        
+        #title-container { padding: 15px 0; text-align: center; z-index: 20; position: fixed; top: 0; left: 0; width: 100%; pointer-events: none; }
+        #lottery-title { color: var(--gold-color); font-size: 3em; margin: 0; text-shadow: -1.5px -1.5px 0 var(--theme-red), 1.5px -1.5px 0 var(--theme-red), -1.5px 1.5px 0 var(--theme-red), 1.5px 1.5px 0 var(--theme-red), 0 2px 8px rgba(0,0,0,0.7); font-weight: 800; letter-spacing: 2px; width: 85%; margin: 0 auto; }
+        
+        #lottery-area { flex-grow: 1; position: relative; overflow: hidden; }
+
+        .lottery-ticket {
+            position: absolute; width: 200px; height: 110px; border-radius: 12px; cursor: grab; user-select: none;
+            background: linear-gradient(145deg, #fef0a7, #d9a945, #b88628, #e0b651, #fef0a7);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.5), inset 0 -1px 2px rgba(0,0,0,0.3);
+            border: 2px solid #a87c1f;
+            display: flex; justify-content: center; align-items: center;
+            color: transparent; overflow: hidden; transform-origin: center center;
+            font-family: 'KaiTi', 'STKaiti', serif;
+        }
+        .lottery-ticket::before { content: ''; position: absolute; top: -50%; left: -150%; width: 50%; height: 200%; background: linear-gradient( to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0) 100% ); transform: rotate(25deg); transition: left 0.7s cubic-bezier(0.23, 1, 0.32, 1); }
+        .lottery-ticket:hover::before { left: 150%; }
+        .ticket-content {
+            width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
+            font-size: 2.5em; font-weight: bold; color: #c03b2b; text-shadow: 1px 1px 0px #fff;
+        }
+        .ticket-sn {
+            position: absolute; bottom: 5px; right: 10px; font-size: 11px; color: #5a3a22; font-family: 'Courier New', Courier, monospace;
+        }
+
+        #bottom-controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
+            display: flex; gap: 15px; padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        #spotlight-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            --spotlight-size: 150px; /* 定义初始光圈大小 */
+            background: radial-gradient(
+                circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+                rgba(0, 0, 0, 0) 0,
+                rgba(0, 0, 0, 0) var(--spotlight-size),
+                rgba(0, 0, 0, 0.85) calc(var(--spotlight-size) + 50px)
+            );
+            z-index: 50;
+            pointer-events: none;
+            display: none;
+            opacity: 0;
+            /* 关键：现在我们让浏览器对 --spotlight-size 变量进行动画 */
+            transition: --spotlight-size 2.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.5s ease-in;
+        }
+
+        #spotlight-overlay.revealing {
+            /* 作用：将光圈大小变量更新为一个巨大的值 */
+            --spotlight-size: 150vw; 
+        }
+        .ctrl-btn {
+            background: linear-gradient(145deg, #f0c74c, #e3a42f);
+            border: 1px solid #c89b3c;
+            color: #4a2f00;
+            font-size: 16px; font-weight: bold;
+            padding: 10px 25px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 -2px 3px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.7);
+            text-shadow: 0 1px 1px rgba(255,255,255,0.5);
+        }
+        .ctrl-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.35), inset 0 -2px 3px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.7); }
+        .ctrl-btn:active { transform: translateY(1px); box-shadow: 0 2px 5px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.7); }
+        .ctrl-btn:disabled {
+            background: linear-gradient(145deg, #bbb, #999);
+            color: #666;
+            cursor: not-allowed;
+            border-color: #888;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            transform: none;
+            text-shadow: none;
+        }
+        
+        /* Settings Modal */
+        #settings-modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center; z-index: 999;
+        }
+        #settings-modal {
+            width: 95vw; max-width: 800px; height: 90vh;
+            background-color: var(--light-bg);
+            border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; color: var(--dark-text);
+        }
+        #settings-header { padding: 20px; text-align: center; background: #333; color: white; border-radius: 15px 15px 0 0; }
+        #settings-header h2 { margin: 0; font-size: 1.5em; }
+        #settings-content { display: flex; flex-grow: 1; overflow: hidden; }
+        #settings-controls { width: 420px; min-width: 360px; padding: 20px; overflow-y: auto; border-right: 1px solid #ccc; }
+        #settings-results { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; }
+        #results-display { background-color: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 10px; flex-grow: 1; overflow-y: auto; }
+        .result-prize-group { margin-bottom: 15px; }
+        .result-prize-group strong { color: var(--theme-red); display: block; margin-bottom: 5px; }
+        .winner-tag { display: inline-block; background-color: var(--gold-color); color: #8b4513; padding: 3px 8px; border-radius: 3px; margin: 2px; font-weight: bold; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 20px; }
+        .control-group h3 { margin: 0 0 10px; border-bottom: 2px solid var(--theme-red); padding-bottom: 5px; font-size: 18px; color: var(--theme-red); }
+        input[type="text"], input[type="number"], textarea, .btn { width: 100%; padding: 10px; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+        textarea { height: 120px; resize: vertical; }
+        .prize-item { display: flex; align-items: center; margin-bottom: 8px; gap: 8px; }
+        .prize-item input[type="text"] { flex-grow: 1; }
+        .prize-item input[type="number"] { width: 60px; flex-shrink: 0; }
+        .delete-prize-btn { flex-shrink: 0; width: 24px; height: 24px; background-color: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: bold; line-height: 1; }
+        .btn { display: block; border: none; color: white; font-size: 16px; cursor: pointer; text-align: center; }
+        #add-prize-btn { background-color: #2980b9; margin-top: 10px; }
+        #generate-btn { background-color: var(--theme-red); font-weight: bold; margin-top: 20px; }
+        .custom-control-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .custom-control-row label { flex-shrink: 0; width: 75px; text-align: right; font-size: 14px; }
+        
+        /* Modals (Winner, Final) */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 10000; }
+        #winner-modal { position: relative; padding: 30px 50px; background: radial-gradient(circle, #fffbe6 0%, #f1c40f 100%); border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); text-align: center; border: 8px solid #fff; max-height: 85vh; max-width: 90vw; min-width: 400px; overflow-y: auto; box-sizing: border-box; }
+        #winner-prize-name { font-size: 28px; color: var(--theme-red); margin-top: 0; }
+        #winner-progress { font-size: 16px; color: #333; margin: -10px 0 15px; }
+        #winners-list { font-size: 2.6em; font-weight: 800; margin: 20px 0; color: #d35400; text-shadow: 1px 1px 0px #fff; }
+        #winners-list p { margin: 10px 0; line-height: 1.3; letter-spacing: 2px; }
+        #close-btn { display: inline-block; width: auto; background-color: var(--theme-red); padding: 12px 40px; margin-top: 20px; font-weight: bold; font-size: 18px; border-radius: 50px; }
+        
+        #final-results-modal { position: relative; background: #fff; color: #333; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); width: 90vw; max-width: 800px; height: 90vh; max-height: 700px; display: flex; flex-direction: column; }
+        #final-results-header { padding: 20px; text-align: center; background: var(--theme-red); color: white; border-radius: 15px 15px 0 0; }
+        #final-results-header h2 { margin: 0; font-size: 2em; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+        #final-winners-list { padding: 20px 30px; flex-grow: 1; overflow-y: auto; }
+        #final-winners-list .prize-group { margin-bottom: 25px; }
+        #final-winners-list .prize-group h3 { color: var(--theme-red); font-size: 1.5em; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 12px; }
+        #final-winners-list .prize-group p { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+        #final-winners-list .prize-group span { background: #f0f0f0; padding: 5px 12px; border-radius: 5px; font-size: 1.1em; font-weight: bold; color: #333; }
+        #final-results-footer { padding: 15px; background: #f7f7f7; border-top: 1px solid #ddd; border-radius: 0 0 15px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+        #toggle-scroll-btn { background-color: #888; padding: 8px 15px; color: white; }
+        #toggle-scroll-btn.active { background-color: #27ae60; }
+
+        #fireworks-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10001; pointer-events: none; }
+        .firework { position: absolute; width: 4px; height: 4px; border-radius: 50%; opacity: 1; transform: scale(1); animation: firework-explode 2.8s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        @keyframes firework-explode { 0% { opacity: 1; transform: scale(0.1); } 100% { opacity: 0; transform: scale(4.0) translate(var(--translateX), var(--translateY)); } }
+    </style>
+</head>
+<body>
+    <div id="fireworks-container"></div>
+    <audio id="bg-music" loop></audio>
+
+    <div id="app-container">
+        <div id="title-container"><h1 id="lottery-title">幸福人寿福建分公司十六周岁生日快乐</h1></div>
+        <div id="lottery-area"></div>
+        <div id="bottom-controls">
+            <button id="settings-btn" class="ctrl-btn">设置</button>
+            <button id="mode-toggle-btn" class="ctrl-btn">逐个抽奖</button>
+            <button id="draw-btn" class="ctrl-btn" disabled>开始</button>
+            <button id="music-toggle-btn" class="ctrl-btn">▶️ 音乐</button>
+        </div>
+    <div id="spotlight-overlay"></div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal-overlay">
+        <div id="settings-modal">
+            <div id="settings-header"><h2>抽奖设置</h2></div>
+            <div id="settings-content">
+                <div id="settings-controls">
+                    <div class="control-group"><h3>活动标题</h3><input type="text" id="title-input" value="幸福人寿福建分公司十六周岁生日快乐"></div>
+                     <div class="control-group"><h3>标题字体</h3>
+                        <div class="custom-control-row"><label for="title-size-input">字体大小:</label><input type="range" id="title-size-input" min="1" max="20" value="3" step="0.1" style="flex-grow:1;"></div>
+                        <div class="custom-control-row"><label for="title-font-input">字体文件:</label><input type="file" id="title-font-input" accept=".ttf,.otf,.woff,.woff2"></div>
+                    </div>
+                    <div class="control-group">
+                        <h3>候选名单 (每行一个)</h3>
+                        <textarea id="candidates-list" placeholder="张三&#10;李四&#10;王五"></textarea>
+                    </div>
+                    <div class="control-group"><h3>奖项设置 (从上往下抽)</h3><div id="prizes-container"></div><button id="add-prize-btn" class="btn">添加奖项</button></div>
+                    <button id="generate-btn" class="btn">生成/重置抽奖</button>
+                    <div class="control-group" style="margin-top:20px;"><h3>自定义</h3>
+                        <div class="custom-control-row"><label for="bg-image-input">替换背景:</label><input type="file" id="bg-image-input" accept="image/*"></div>
+                        <div class="custom-control-row"><label for="music-input">背景音乐:</label><input type="file" id="music-input" accept="audio/*"></div>
+                    </div>
+                </div>
+                <div id="settings-results">
+                    <h3>中奖结果</h3>
+                    <div id="results-display"><p id="status-text">请先设置并生成抽奖。</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Winner Announcement Modal -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div id="winner-modal">
+            <h2 id="winner-prize-name"></h2>
+            <p id="winner-progress"></p>
+            <div id="winners-list"></div>
+            <button id="close-btn" class="btn">确定</button>
+        </div>
+    </div>
+
+    <!-- Final Results Modal -->
+    <div id="final-results-modal-overlay" class="modal-overlay">
+        <div id="final-results-modal">
+            <div id="final-results-header"><h2>🎉 最终中奖名单 🎉</h2></div>
+            <div id="final-winners-list"></div>
+            <div id="final-results-footer">
+                <button id="toggle-scroll-btn" class="btn">自动滚动</button>
+                <button id="close-final-btn" class="btn" style="background-color:var(--theme-red);">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="gsap.min.js"></script>
+    <script src="Draggable.min.js"></script>
+    <script>
+        const lotteryState = {
+            candidates: [], prizes: [], winners: {}, seed: '',
+            currentPrizeIndex: -1, isReady: false, mode: 'manual', ticketPositions: [],
+            allFixedWinners: new Set(), drawOrder: []
+        };
+        let isAnimating = false;
+        let isSpotlightSearching = false;
+        let fireworksInterval = null;
+        let fileUrls = { bg: null, music: null, font: null };
+        let scrollInterval = null;
+        let scrollDirection = 1;
+
+        const escapeHTML = str => str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag] || tag));
+        const mulberry32 = a => { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }};
+        const debounce = (func, wait) => { let timeout; return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); }; };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Main Controls
+            document.getElementById('settings-btn').addEventListener('click', () => {
+                document.getElementById('settings-modal-overlay').style.display = 'flex';
+            });
+            document.getElementById('mode-toggle-btn').addEventListener('click', () => switchMode());
+            document.getElementById('draw-btn').addEventListener('click', handleDrawClick);
+            document.getElementById('music-toggle-btn').addEventListener('click', toggleMusic);
+            
+            // Settings Panel
+            document.getElementById('settings-modal-overlay').addEventListener('click', (e) => {
+                if(e.target === e.currentTarget) document.getElementById('settings-modal-overlay').style.display = 'none';
+            });
+            const prizeContainer = document.getElementById('prizes-container');
+            addPrizeItem("三等奖", 5); addPrizeItem("二等奖", 2); addPrizeItem("一等奖", 1);
+            document.getElementById('title-input').addEventListener('input', e => document.getElementById('lottery-title').textContent = e.target.value);
+            document.getElementById('title-size-input').addEventListener('input', e => document.getElementById('lottery-title').style.fontSize = `${e.target.value}rem`);
+            document.getElementById('add-prize-btn').addEventListener('click', () => addPrizeItem());
+            prizeContainer.addEventListener('click', e => { if (e.target.classList.contains('delete-prize-btn')) e.target.closest('.prize-item').remove(); });
+            document.getElementById('generate-btn').addEventListener('click', setupLottery);
+            document.getElementById('bg-image-input').addEventListener('change', handleFileChange.bind(null, 'bg'));
+            document.getElementById('music-input').addEventListener('change', handleFileChange.bind(null, 'music'));
+            document.getElementById('title-font-input').addEventListener('change', handleFileChange.bind(null, 'font'));
+
+            // Modals
+            document.getElementById('close-btn').addEventListener('click', closeModal);
+            document.getElementById('close-final-btn').addEventListener('click', closeFinalResultsModal);
+            document.getElementById('toggle-scroll-btn').addEventListener('click', toggleAutoScroll);
+            
+            window.addEventListener('resize', debounce(relayoutTickets, 250));
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (lotteryState.isReady) { e.preventDefault(); e.returnValue = ''; }
+        });
+
+        function addPrizeItem(name = '', count = 1) {
+            const container = document.getElementById('prizes-container');
+            const item = document.createElement('div'); item.className = 'prize-item';
+            const nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.value = escapeHTML(name); nameInput.placeholder = "奖项名称";
+            const countInput = document.createElement('input'); countInput.type = 'number'; countInput.value = count; countInput.min = 1;
+            const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-prize-btn'; deleteBtn.innerHTML = '&times;';
+            nameInput.addEventListener('dblclick', function() {
+                const currentFixedStr = item.dataset.fixedWinners ? JSON.parse(item.dataset.fixedWinners).join(', ') : '';
+                const newFixedStr = prompt(`为【${this.value}】设置内定中奖人\n(用逗号、空格或换行分隔多个名字)\n留空则取消内定：`, currentFixedStr);
+                if (newFixedStr === null) return;
+                const fixedNames = newFixedStr.split(/,|\s+|\n/).map(n => n.trim()).filter(Boolean);
+                if (fixedNames.length > 0) {
+                    item.dataset.fixedWinners = JSON.stringify(fixedNames); this.title = `内定中奖人: ${fixedNames.join(', ')}`;
+                } else {
+                    delete item.dataset.fixedWinners; this.title = '';
+                }
+            });
+            item.append(nameInput, countInput, deleteBtn); container.appendChild(item);
+        }
+
+        function setupLottery() {
+            // Validation logic... 
+            const rawNames = document.getElementById('candidates-list').value.split('\n').map(n => n.trim()).filter(Boolean);
+            if (rawNames.length === 0) return alert('请在候选名单中输入姓名！');
+            const uniqueNames = [...new Set(rawNames)];
+            if (uniqueNames.length < rawNames.length) return alert(`错误：候选名单中存在重名！请修改后重试。`);
+            
+            const prizes = []; const prizeNameSet = new Set();
+            const fixedWinnerTracker = new Map(); let totalWinners = 0;
+            for (const item of document.querySelectorAll('.prize-item')) {
+                const name = item.querySelector('input[type="text"]').value.trim();
+                const count = parseInt(item.querySelector('input[type="number"]').value, 10);
+                const fixedWinners = item.dataset.fixedWinners ? JSON.parse(item.dataset.fixedWinners) : [];
+                if (!name) return alert('奖项名称不能为空！');
+                if (prizeNameSet.has(name)) return alert(`错误：检测到重复的奖项名称 “${name}”！`); prizeNameSet.add(name);
+                if (count > 0) {
+                    if (fixedWinners.length > count) return alert(`错误：奖项【${name}】的内定人数 (${fixedWinners.length}) 不能超过奖项总名额 (${count})！`);
+                    const prizeData = { name, count, fixed: [] };
+                    for (const fw of fixedWinners) {
+                        if (!uniqueNames.includes(fw)) return alert(`错误：内定中奖人 “${fw}” 不在候选名单中！`);
+                        if (fixedWinnerTracker.has(fw)) return alert(`错误：“${fw}” 已被内定为【${fixedWinnerTracker.get(fw)}】的中奖人，不能重复内定！`);
+                        prizeData.fixed.push(fw); fixedWinnerTracker.set(fw, name);
+                    }
+                    prizes.push(prizeData); totalWinners += count;
+                }
+            }
+            if (prizes.length === 0) return alert('请至少设置一个有效奖项！');
+            if (totalWinners > uniqueNames.length) return alert(`错误：总获奖人数 (${totalWinners}) 不能超过候选总人数 (${uniqueNames.length})！`);
+            
+            // Seeding and shuffling logic... 
+            const title = document.getElementById('title-input').value;
+            lotteryState.seed = `${title}|${uniqueNames.join(',')}|${Math.random()}`;
+            let seedNum = 0; for (let i = 0; i < lotteryState.seed.length; i++) { seedNum = (seedNum << 5) - seedNum + lotteryState.seed.charCodeAt(i); seedNum |= 0; }
+            const random = mulberry32(seedNum);
+            const allFixedWinners = new Set(fixedWinnerTracker.keys());
+            let randomCandidates = [...uniqueNames].filter(name => !allFixedWinners.has(name));
+            randomCandidates.sort(() => random() - 0.5);
+            const drawOrder = [];
+            prizes.forEach(prize => {
+                const randomNeeded = prize.count - prize.fixed.length;
+                const randomWinners = randomCandidates.splice(0, randomNeeded);
+                let prizeWinners = [...prize.fixed, ...randomWinners];
+                prizeWinners.sort(() => random() - 0.5); 
+                prizeWinners.forEach(winner => drawOrder.push({ prizeName: prize.name, winnerName: winner }));
+            });
+            
+            Object.assign(lotteryState, { candidates: [...uniqueNames], prizes, winners: {}, currentPrizeIndex: 0, isReady: true, allFixedWinners, drawOrder });
+            prizes.forEach(p => lotteryState.winners[p.name] = []);
+            
+            createAndLayoutTickets();
+            updateResultsPanel();
+            alert('抽奖已生成！可以关闭设置面板开始抽奖。');
+            document.getElementById('settings-modal-overlay').style.display = 'none';
+        }
+        
+        // MODIFIED: Simplified switchMode function
+        function switchMode() {
+            lotteryState.mode = lotteryState.mode === 'manual' ? 'batch' : 'manual';
+            const btn = document.getElementById('mode-toggle-btn');
+            const drawBtn = document.getElementById('draw-btn');
+            if (lotteryState.mode === 'batch') {
+                btn.textContent = '批量抽奖';
+                drawBtn.disabled = false;
+            } else {
+                btn.textContent = '逐个抽奖';
+                drawBtn.disabled = true;
+            }
+        }
+        
+        function getTicketBounds() {
+            const titleHeight = document.getElementById('title-container').offsetHeight;
+            const controlsHeight = document.getElementById('bottom-controls').offsetHeight;
+            const area = document.getElementById('lottery-area');
+            return {
+                top: titleHeight + 10,
+                left: 0,
+                width: area.offsetWidth,
+                height: area.offsetHeight - titleHeight - controlsHeight - 40 // 40 for bottom-controls margin and extra space
+            };
+        }
+
+        function createAndLayoutTickets() {
+            const area = document.getElementById('lottery-area'); area.innerHTML = ''; lotteryState.ticketPositions = [];
+            const ticketCount = lotteryState.candidates.length;
+            const bounds = getTicketBounds();
+            const titleHeight = document.getElementById('title-container').offsetHeight;
+            
+            for (let i = 0; i < ticketCount; i++) {
+                const ticket = document.createElement('div'); ticket.className = 'lottery-ticket';
+                ticket.innerHTML = `<div class="ticket-content">抽奖券</div><div class="ticket-sn">NO.${String(Math.floor(Math.random() * 9000) + 1000)}</div>`;
+                
+                const pos = {
+                    x: Math.random() * (bounds.width - 200),
+                    y: (titleHeight + 20) + (Math.random() * (bounds.height - 110 - 20))
+                };
+                lotteryState.ticketPositions.push(pos);
+                ticket.style.transform = `translate(${pos.x}px, ${pos.y - (titleHeight + 20)}px)`;
+                ticket.style.top = `${titleHeight + 20}px`;
+                area.appendChild(ticket);
+            }
+            makeTicketsDraggable();
+        }
+
+        function relayoutTickets() {
+            if (!lotteryState.isReady) return;
+            Draggable.get(".lottery-ticket")?.forEach(d => d.applyBounds(getTicketBounds()));
+        }
+
+        function makeTicketsDraggable() {
+            Draggable.create(".lottery-ticket", {
+                type: "x,y",
+                bounds: getTicketBounds(),
+                onPress: function() { this.startX = this.x; this.startY = this.y; this.startTime = Date.now(); },
+                onClick: function() {
+                    const dist = Math.sqrt(Math.pow(this.x - this.startX, 2) + Math.pow(this.y - this.startY, 2));
+                    const time = Date.now() - this.startTime;
+                    if (dist < 5 && time < 200 && lotteryState.mode === 'manual') onTicketClick(this.target);
+                }
+            });
+        }
+
+        const isAllPrizesDrawn = () => {
+            const totalWinnersDrawn = Object.values(lotteryState.winners).flat().length;
+            return lotteryState.drawOrder.length > 0 && totalWinnersDrawn >= lotteryState.drawOrder.length;
+        };
+        
+        function onTicketClick(ticketElement) {
+            if (isAnimating || !lotteryState.isReady || isAllPrizesDrawn()) return;
+            const totalWinnersDrawn = Object.values(lotteryState.winners).flat().length;
+            if (totalWinnersDrawn >= lotteryState.drawOrder.length) return;
+            isAnimating = true;
+            const nextDraw = lotteryState.drawOrder[totalWinnersDrawn];
+            animateAndProcessWinners([ticketElement], [nextDraw.winnerName], nextDraw.prizeName);
+        }
+        
+        // MODIFIED: Simplified handleDrawClick function
+        function handleDrawClick() {
+            if (isAnimating || !lotteryState.isReady || lotteryState.mode !== 'batch') return;
+
+            const drawBtn = document.getElementById('draw-btn');
+
+            if (!isSpotlightSearching) {
+                // --- 阶段1：开始探照灯搜索 ---
+                isSpotlightSearching = true;
+                drawBtn.textContent = ' 停！';
+                startSpotlightSearch();
+            } else {
+                // --- 阶段2：停止搜索并开奖 ---
+                isSpotlightSearching = false;
+                drawBtn.textContent = '开始';
+                drawBtn.disabled = true; // 开奖过程中禁用
+                stopSpotlightAndReveal();
+            }
+        }
+        function startSpotlightSearch() {
+            const overlay = document.getElementById('spotlight-overlay');
+            overlay.style.display = 'block';
+            gsap.to(overlay, { opacity: 1, duration: 0.5 });
+
+            // 定义一个可以自我重复的“随机移动”函数
+            const randomMove = () => {
+                // 1. 获取奖券出现的有效区域（而不是整个屏幕）
+                const bounds = getTicketBounds();
+
+                // 2. 在有效区域内计算一个随机的目标点（像素单位）
+                const targetX_px = bounds.left + Math.random() * bounds.width;
+                const targetY_px = bounds.top + Math.random() * bounds.height;
+
+                // 3. 将像素目标点转换为CSS需要的屏幕百分比
+                const targetX_pct = (targetX_px / window.innerWidth) * 100;
+                const targetY_pct = (targetY_px / window.innerHeight) * 100;
+                
+                // 4. 使用 GSAP 动画到新的随机位置，并设置随机的移动时间
+                gsap.to(overlay, {
+                    '--spotlight-x': `${targetX_pct}%`,
+                    '--spotlight-y': `${targetY_pct}%`,
+                    duration: gsap.utils.random(0.8, 1.2), // 每次移动耗时0.8到1.2秒
+                    ease: 'sine.inOut',
+                    // 关键：动画一结束，就再次调用自己，去往下一个随机点
+                    onComplete: randomMove 
+                });
+            };
+
+            // 启动第一次移动，之后它就会无限循环下去
+            randomMove();
+        }
+        function stopSpotlightAndReveal() {
+            const overlay = document.getElementById('spotlight-overlay');
+            
+            // 1. 停止探照灯的移动动画
+            gsap.killTweensOf(overlay);
+
+            // 2. 触发放大和变亮效果
+            overlay.classList.add('revealing');
+
+            // 3. 找出需要开奖的人数和名单
+            const currentPrize = lotteryState.prizes[lotteryState.currentPrizeIndex];
+            if (!currentPrize) {
+                if (isAllPrizesDrawn()) showFinalResultsModal();
+                return;
+            }
+            const drawnWinnersInPrize = lotteryState.winners[currentPrize.name] || [];
+            const winnersToDrawNow = lotteryState.drawOrder
+                .filter(d => d.prizeName === currentPrize.name)
+                .map(d => d.winnerName)
+                .filter(w => !drawnWinnersInPrize.includes(w));
+
+            if (winnersToDrawNow.length === 0) return;
+
+            // 4. 定位探照灯中心点，并找到最近的奖券
+            const spotlightX = parseFloat(gsap.getProperty(overlay, '--spotlight-x', '%')) / 100 * window.innerWidth;
+            const spotlightY = parseFloat(gsap.getProperty(overlay, '--spotlight-y', '%')) / 100 * window.innerHeight;
+
+            const tickets = Array.from(document.querySelectorAll('.lottery-ticket'));
+            
+            tickets.forEach(ticket => {
+                const rect = ticket.getBoundingClientRect();
+                const ticketX = rect.left + rect.width / 2;
+                const ticketY = rect.top + rect.height / 2;
+                const distance = Math.sqrt(Math.pow(ticketX - spotlightX, 2) + Math.pow(ticketY - spotlightY, 2));
+                ticket.dataset.distance = distance; // 把距离存到 DOM 元素上
+            });
+
+            // 根据距离排序，最近的排在最前面
+            tickets.sort((a, b) => a.dataset.distance - b.dataset.distance);
+
+            const ticketsToAnimate = tickets.slice(0, winnersToDrawNow.length);
+
+            // 5. 延迟执行开奖动画，让探照灯放大效果先显示
+            setTimeout(() => {
+                isAnimating = true;
+                animateAndProcessWinners(ticketsToAnimate, winnersToDrawNow, currentPrize.name);
+                
+                // 6. 清理现场
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    overlay.classList.remove('revealing');
+                    document.getElementById('draw-btn').disabled = false;
+                }, 1500); // 等待开奖动画结束
+
+            }, 500); // 0.5秒后开奖，这是探照灯放大的时间
+        }
+        // REMOVED: startBatchAnimation and stopBatchAnimation functions are no longer needed.
+        function animateAndProcessWinners(tickets, names, prizeName) {
+            gsap.to(tickets, {
+                zIndex: 10000, scale: 3, opacity: 0, rotation: 720,
+                duration: 1.2, ease: 'expo.inOut', stagger: 0.1,
+                onComplete: () => {
+                    const currentWinnersForPrize = lotteryState.winners[prizeName] || [];
+                    const uniqueNewWinners = names.filter(n => !currentWinnersForPrize.includes(n));
+                    if (!lotteryState.winners[prizeName]) lotteryState.winners[prizeName] = [];
+                    lotteryState.winners[prizeName].push(...uniqueNewWinners);
+                    showModal(uniqueNewWinners, prizeName);
+                    const prizeInfo = lotteryState.prizes.find(p => p.name === prizeName);
+                    if (prizeInfo && lotteryState.winners[prizeName].length >= prizeInfo.count) {
+                        lotteryState.currentPrizeIndex++;
+                    }
+                    updateResultsPanel();
+                    tickets.forEach(ticket => ticket.remove());
+                }
+            });
+        }
+        
+        function showModal(names, prizeName) {
+            document.getElementById('winner-prize-name').textContent = `🎉 ${escapeHTML(prizeName)} 🎉`;
+            const listEl = document.getElementById('winners-list'); listEl.innerHTML = '';
+            const progressEl = document.getElementById('winner-progress');
+            const prize = lotteryState.prizes.find(p => p.name === prizeName);
+            const currentCount = (lotteryState.winners[prizeName] || []).length;
+            progressEl.textContent = `${escapeHTML(prize.name)}进度: ${currentCount} / ${prize.count}`;
+            for (let i = 0; i < names.length; i += 4) {
+                const chunk = names.slice(i, i + 4).map(escapeHTML);
+                const p = document.createElement('p'); p.textContent = chunk.join(' \u00A0\u00A0 ');
+                listEl.appendChild(p);
+            }
+            document.getElementById('modal-overlay').style.display = 'flex';
+            gsap.fromTo('#winner-modal', { scale: 0.3, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: 'back.out(1.7)' });
+        }
+        
+        function closeModal() {
+             gsap.to('#winner-modal', { scale: 0.8, opacity: 0, duration: 0.3, ease: 'power2.in',
+                onComplete: () => {
+                    document.getElementById('modal-overlay').style.display = 'none';
+                    isAnimating = false;
+                    if (isAllPrizesDrawn()) showFinalResultsModal();
+                }
+            });
+        }
+
+        function showFinalResultsModal() {
+            createFireworks();
+            const listContainer = document.getElementById('final-winners-list'); listContainer.innerHTML = '';
+            lotteryState.prizes.forEach(prize => {
+                const winners = lotteryState.winners[prize.name] || [];
+                if (winners.length > 0) {
+                    const groupDiv = document.createElement('div'); groupDiv.className = 'prize-group';
+                    const title = document.createElement('h3'); title.textContent = `${escapeHTML(prize.name)} (${winners.length}名)`;
+                    const winnersP = document.createElement('p');
+                    winners.forEach(winner => {
+                        const span = document.createElement('span'); span.textContent = escapeHTML(winner); winnersP.appendChild(span);
+                    });
+                    groupDiv.append(title, winnersP); listContainer.appendChild(groupDiv);
+                }
+            });
+            document.getElementById('final-results-modal-overlay').style.display = 'flex';
+            startAutoScroll();
+            const btn = document.getElementById('toggle-scroll-btn');
+            btn.classList.add('active');
+            btn.textContent = '停止滚动';
+        }
+
+        function closeFinalResultsModal() {
+            document.getElementById('final-results-modal-overlay').style.display = 'none';
+            stopAutoScroll();
+            if (fireworksInterval) clearInterval(fireworksInterval);
+        }
+        
+        function createFireworks() {
+            const container = document.getElementById('fireworks-container');
+            
+            // 如果已经有计时器在运行，先清除它
+            if (fireworksInterval) {
+                clearInterval(fireworksInterval);
+            }
+            container.innerHTML = ''; // 每次调用时先清空
+
+            const colors = ['#FFC700', '#FF0000', '#FF007F', '#00FF00', '#00FFFF', '#0000FF'];
+
+            // 定义一个创建单个烟花的函数
+            const launchFirework = () => {
+                const particleCount = 70; // 粒子可以适当增多，看起来更饱满
+                const fireworkBurst = document.createElement('div');
+                fireworkBurst.style.position = 'absolute';
+                fireworkBurst.style.left = `${Math.random() * 100}%`;
+                fireworkBurst.style.top = `${Math.random() * 80}%`;
+                container.appendChild(fireworkBurst);
+
+                for (let j = 0; j < particleCount; j++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'firework';
+                    
+                    const angle = Math.random() * Math.PI * 2;
+                    // 增大了半径，让烟花爆炸范围更大
+                    const radius = Math.random() * 250 + 80; 
+                    const translateX = `${Math.cos(angle) * radius}px`;
+                    const translateY = `${Math.sin(angle) * radius}px`;
+
+                    particle.style.setProperty('--translateX', translateX);
+                    particle.style.setProperty('--translateY', translateY);
+                    particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    fireworkBurst.appendChild(particle);
+                }
+
+                // 在烟花动画结束后（比动画时间稍长一点），从DOM中移除它，防止内存泄漏
+                setTimeout(() => {
+                    fireworkBurst.remove();
+                }, 3000); // 动画是2.8s，3s后移除
+            };
+
+            // 设置一个计时器，每隔一段时间就发射一个烟花，实现持续效果
+            // 这里的 400 毫秒可以调整，数字越小烟花越密集
+            fireworksInterval = setInterval(launchFirework, 400); 
+        }
+
+        function toggleAutoScroll() {
+            const btn = document.getElementById('toggle-scroll-btn');
+            if (scrollInterval) {
+                stopAutoScroll();
+            } else {
+                startAutoScroll();
+                btn.classList.add('active');
+                btn.textContent = '停止滚动';
+            }
+        }
+        
+        function startAutoScroll() {
+            const list = document.getElementById('final-winners-list');
+            clearInterval(scrollInterval);
+            scrollInterval = setInterval(() => {
+                if (list.scrollTop >= list.scrollHeight - list.clientHeight -1) { scrollDirection = -1; } 
+                else if (list.scrollTop <= 0) { scrollDirection = 1; }
+                list.scrollTop += scrollDirection;
+            }, 50);
+        }
+
+        function stopAutoScroll() {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            const btn = document.getElementById('toggle-scroll-btn');
+            btn.classList.remove('active');
+            btn.textContent = '自动滚动';
+        }
+
+        function updateResultsPanel() {
+            const display = document.getElementById('results-display');
+            const statusText = document.getElementById('status-text');
+            if (!lotteryState.isReady || lotteryState.prizes.length === 0) {
+                 if(statusText) statusText.style.display = 'block'; 
+                 display.innerHTML = '<p id="status-text">请先设置并生成抽奖。</p>';
+                 return;
+            }
+            
+            display.innerHTML = '';
+            
+            lotteryState.prizes.forEach(prize => {
+                const winners = lotteryState.winners[prize.name] || [];
+                const group = document.createElement('div'); group.className = 'result-prize-group';
+                const strong = document.createElement('strong'); strong.textContent = `${escapeHTML(prize.name)} (${winners.length}/${prize.count})`;
+                const tagsContainer = document.createElement('div');
+                if (winners.length > 0) {
+                    winners.forEach(winner => {
+                        const tag = document.createElement('span'); tag.className = 'winner-tag';
+                        tag.textContent = escapeHTML(winner); tagsContainer.appendChild(tag);
+                    });
+                }
+                group.append(strong, tagsContainer);
+                display.appendChild(group);
+            });
+        }
+                
+        function handleFileChange(type, event) {
+            const file = event.target.files && event.target.files[0]; if (!file) return;
+            const newUrl = URL.createObjectURL(file);
+            
+            if (type === 'bg') {
+                if (fileUrls.bg) URL.revokeObjectURL(fileUrls.bg);
+                fileUrls.bg = newUrl; document.body.style.backgroundImage = `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%), url(${newUrl})`;
+                document.body.style.backgroundSize = 'cover';
+                document.body.style.backgroundPosition = 'center';
+            } else if (type === 'music') {
+                if (fileUrls.music) URL.revokeObjectURL(fileUrls.music);
+                fileUrls.music = newUrl; 
+                const music = document.getElementById('bg-music');
+                const btn = document.getElementById('music-toggle-btn');
+                music.src = newUrl;
+                music.play().then(() => { btn.textContent = '⏸️ 音乐'; }).catch(error => console.warn("音乐播放失败:", error));
+            } else if (type === 'font') {
+                 if (fileUrls.font) URL.revokeObjectURL(fileUrls.font);
+                 fileUrls.font = newUrl;
+                 const fontFace = new FontFace('CustomFont', `url(${newUrl})`);
+                 fontFace.load().then((loadedFont) => {
+                    document.fonts.add(loadedFont);
+                    document.getElementById('lottery-title').style.fontFamily = 'CustomFont, sans-serif';
+                 }).catch(err => console.error("字体加载失败:", err));
+            }
+        }
+        
+        function toggleMusic() {
+            const music = document.getElementById('bg-music');
+            const btn = document.getElementById('music-toggle-btn');
+            if (!music.src) { return alert("请先在设置中选择一个音乐文件。"); }
+            if (music.paused) {
+                music.play().then(() => { btn.textContent = '⏸️ 音乐'; }).catch(error => { console.warn("音乐播放失败:", error); });
+            } else {
+                music.pause(); btn.textContent = '▶️ 音乐';
+            }
+        }
+    </script>
+</body>
+</html>
