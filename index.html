@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>抽奖工具1.6d</title>
+    <title>幸福闽分抽奖工具1.6d(业务版)</title>
     <style>
         @property --spotlight-size {
             syntax: '<length>';
@@ -166,7 +166,7 @@
     <audio id="bg-music" loop></audio>
 
     <div id="app-container">
-        <div id="title-container"><h1 id="lottery-title">新春抽奖活动</h1></div>
+        <div id="title-container"><h1 id="lottery-title">幸福人寿福建分公司十六周岁生日快乐</h1></div>
         <div id="lottery-area"></div>
         <div id="bottom-controls">
             <button id="settings-btn" class="ctrl-btn">设置</button>
@@ -189,7 +189,7 @@
                         <div class="custom-control-row"><label for="title-font-input">字体文件:</label><input type="file" id="title-font-input" accept=".ttf,.otf,.woff,.woff2"></div>
                     </div>
                     <div class="control-group">
-                        <h3>候选名单 (每行一个)</h3>
+                        <h3>候选名单 (每行一个) <span id="candidate-count" style="color: #888; font-weight: normal;"></span></h3>
                         <textarea id="candidates-list" placeholder="张三&#10;李四&#10;王五"></textarea>
                     </div>
                     <div class="control-group"><h3>奖项设置 (从上往下抽)</h3><div id="prizes-container"></div><button id="add-prize-btn" class="btn">添加奖项</button></div>
@@ -250,6 +250,25 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             // Main Controls
+            // --- 新增：监听候选人列表变化并显示人数 ---
+            const candidatesTextarea = document.getElementById('candidates-list');
+            const candidateCountSpan = document.getElementById('candidate-count');
+
+            candidatesTextarea.addEventListener('input', () => {
+                // 获取文本框的值，并按换行符分割成数组
+                const lines = candidatesTextarea.value.split('\n');
+                // 过滤掉所有空行（只计算有内容的行）
+                const validCandidatesCount = lines.filter(line => line.trim() !== '').length;
+
+                if (validCandidatesCount > 0) {
+                    // 如果有候选人，则显示计数
+                    candidateCountSpan.textContent = `(已导入 ${validCandidatesCount} 人)`;
+                } else {
+                    // 如果没有，则清空文本
+                    candidateCountSpan.textContent = '';
+                }
+            });
+            // --- 新增代码结束 ---
             document.getElementById('settings-btn').addEventListener('click', () => {
                 document.getElementById('settings-modal-overlay').style.display = 'flex';
             });
